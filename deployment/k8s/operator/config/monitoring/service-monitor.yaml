@@ -1,0 +1,68 @@
+# ============================================================================
+# Prometheus ServiceMonitor for GoraphDB
+#
+# This ServiceMonitor tells the Prometheus Operator to scrape metrics from
+# GoraphDB pods. It targets the headless Service to discover all pods
+# (leader + followers) individually.
+#
+# Requires: Prometheus Operator installed in the cluster
+#   kubectl apply -f https://github.com/prometheus-operator/kube-prometheus/...
+#
+# GoraphDB exposes metrics at GET /metrics in Prometheus text exposition format.
+# See metrics.go for the full list of counters and gauges.
+#
+# Available metrics:
+#
+# Counters:
+#   graphdb_queries_total              — Cypher query executions
+#   graphdb_slow_queries_total         — queries exceeding threshold
+#   graphdb_query_errors_total         — failed queries
+#   graphdb_query_duration_us_sum      — cumulative query time
+#   graphdb_cache_hits_total           — node cache + query cache hits
+#   graphdb_cache_misses_total         — cache misses
+#   graphdb_nodes_created_total        — nodes created
+#   graphdb_nodes_deleted_total        — nodes deleted
+#   graphdb_edges_created_total        — edges created
+#   graphdb_edges_deleted_total        — edges deleted
+#   graphdb_index_lookups_total        — property index lookups
+#   graphdb_bloom_negatives_total      — bloom filter true negatives
+#
+# Gauges:
+#   graphdb_nodes_current              — current node count
+#   graphdb_edges_current              — current edge count
+#   graphdb_node_cache_bytes_used      — node cache memory usage
+#   graphdb_node_cache_budget_bytes    — configured cache budget
+#   graphdb_query_cache_entries        — LRU query cache size
+#   graphdb_query_cache_capacity       — query cache max capacity
+#   graphdb_query_duration_us_max      — max observed query duration
+#
+# Note: This is a template. The operator generates the actual ServiceMonitor
+# dynamically based on the GoraphDBCluster CRD's monitoring spec.
+# This file serves as documentation and can be used for manual deployment.
+# ============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: goraphdb-sample
+  labels:
+    app.kubernetes.io/name: goraphdb
+    app.kubernetes.io/part-of: goraphdb
+    # Prometheus Operator discovers ServiceMonitors by labels.
+    # Ensure your Prometheus instance's serviceMonitorSelector matches.
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: goraphdb
+      app.kubernetes.io/component: headless
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      # Honor GoraphDB's metric labels to avoid conflicts.
+      honorLabels: true
+  # Match the namespace of the GoraphDB cluster.
+  namespaceSelector:
+    matchNames:
+      - default

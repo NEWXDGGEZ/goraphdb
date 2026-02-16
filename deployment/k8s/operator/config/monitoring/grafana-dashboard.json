@@ -1,0 +1,165 @@
+{
+  "__comment": "GoraphDB Grafana Dashboard — Overview panels for monitoring a GoraphDB cluster.",
+  "__usage": "Import this JSON into Grafana via Dashboards > Import, or deploy as a ConfigMap with the grafana_dashboard label.",
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Query Rate",
+      "description": "Total Cypher queries per second across all pods. Source: graphdb_queries_total counter (metrics.go).",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(graphdb_queries_total[5m]))",
+          "legendFormat": "queries/s"
+        }
+      ]
+    },
+    {
+      "title": "Slow Queries",
+      "description": "Slow queries per second (exceeding SlowQueryThreshold). Source: graphdb_slow_queries_total.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(graphdb_slow_queries_total[5m]))",
+          "legendFormat": "slow queries/s"
+        }
+      ]
+    },
+    {
+      "title": "Node & Edge Count",
+      "description": "Current number of nodes and edges per pod. Source: graphdb_nodes_current, graphdb_edges_current gauges.",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "max(graphdb_nodes_current)",
+          "legendFormat": "Nodes"
+        },
+        {
+          "expr": "max(graphdb_edges_current)",
+          "legendFormat": "Edges"
+        }
+      ]
+    },
+    {
+      "title": "Cache Hit Rate",
+      "description": "Node cache hit rate. High hit rates (>90%) indicate the cache budget is sized correctly. Source: graphdb_cache_hits_total, graphdb_cache_misses_total.",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(graphdb_cache_hits_total[5m])) / (sum(rate(graphdb_cache_hits_total[5m])) + sum(rate(graphdb_cache_misses_total[5m])))",
+          "legendFormat": "hit rate"
+        }
+      ]
+    },
+    {
+      "title": "Node Cache Memory Usage",
+      "description": "Memory used by the node LRU cache vs configured budget. Source: graphdb_node_cache_bytes_used, graphdb_node_cache_budget_bytes.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "graphdb_node_cache_bytes_used",
+          "legendFormat": "{{pod}} used"
+        },
+        {
+          "expr": "graphdb_node_cache_budget_bytes",
+          "legendFormat": "{{pod}} budget"
+        }
+      ]
+    },
+    {
+      "title": "Write Operations",
+      "description": "Node and edge creation/deletion rates. Source: graphdb_nodes_created_total, graphdb_edges_created_total, etc.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "expr": "sum(rate(graphdb_nodes_created_total[5m]))",
+          "legendFormat": "nodes created/s"
+        },
+        {
+          "expr": "sum(rate(graphdb_edges_created_total[5m]))",
+          "legendFormat": "edges created/s"
+        },
+        {
+          "expr": "sum(rate(graphdb_nodes_deleted_total[5m]))",
+          "legendFormat": "nodes deleted/s"
+        },
+        {
+          "expr": "sum(rate(graphdb_edges_deleted_total[5m]))",
+          "legendFormat": "edges deleted/s"
+        }
+      ]
+    },
+    {
+      "title": "Query Duration (Max)",
+      "description": "Maximum observed query duration. Spikes indicate expensive graph traversals. Source: graphdb_query_duration_microseconds_max.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "expr": "graphdb_query_duration_microseconds_max / 1000",
+          "legendFormat": "{{pod}} max (ms)"
+        }
+      ]
+    },
+    {
+      "title": "Index & Bloom Filter",
+      "description": "Index lookup rate and bloom filter effectiveness. High bloom negatives = good (avoids unnecessary edge lookups). Source: graphdb_index_lookups_total, graphdb_bloom_negatives_total.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        {
+          "expr": "sum(rate(graphdb_index_lookups_total[5m]))",
+          "legendFormat": "index lookups/s"
+        },
+        {
+          "expr": "sum(rate(graphdb_bloom_negatives_total[5m]))",
+          "legendFormat": "bloom negatives/s"
+        }
+      ]
+    },
+    {
+      "title": "Query Cache",
+      "description": "LRU query cache utilization. Entries vs capacity shows how full the cache is. Source: graphdb_query_cache_entries, graphdb_query_cache_capacity.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 28 },
+      "targets": [
+        {
+          "expr": "graphdb_query_cache_entries",
+          "legendFormat": "{{pod}} entries"
+        },
+        {
+          "expr": "graphdb_query_cache_capacity",
+          "legendFormat": "{{pod}} capacity"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["goraphdb", "database", "graph"],
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "query",
+        "query": "label_values(graphdb_queries_total, namespace)",
+        "current": { "text": "default", "value": "default" }
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "GoraphDB Cluster Overview",
+  "uid": "goraphdb-overview"
+}
