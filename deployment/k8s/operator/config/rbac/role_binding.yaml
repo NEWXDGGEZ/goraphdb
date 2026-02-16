@@ -1,0 +1,18 @@
+# Binds the goraphdb-operator ClusterRole to the goraphdb-operator
+# ServiceAccount in the goraphdb-system namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: goraphdb-operator
+  labels:
+    app.kubernetes.io/name: goraphdb-operator
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: goraphdb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: goraphdb-operator
+subjects:
+  - kind: ServiceAccount
+    name: goraphdb-operator
+    namespace: goraphdb-system

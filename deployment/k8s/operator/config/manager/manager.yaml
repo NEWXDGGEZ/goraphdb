@@ -1,0 +1,78 @@
+# ============================================================================
+# GoraphDB Operator — Deployment
+#
+# Runs the operator controller manager as a Kubernetes Deployment.
+# The operator watches GoraphDBCluster custom resources and reconciles
+# them into StatefulSets, Services, and related Kubernetes objects.
+#
+# Design decisions:
+# - Single replica with leader election disabled (simplicity for MVP).
+#   For HA, set replicas=2 and enable --leader-elect.
+# - Resource requests are conservative; the operator itself is lightweight
+#   (most resources are consumed by the GoraphDB pods it manages).
+# - Liveness/readiness probes hit the operator's own health endpoints
+#   (not the GoraphDB /api/health endpoints).
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goraphdb-operator
+  namespace: goraphdb-system
+  labels:
+    app.kubernetes.io/name: goraphdb-operator
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: goraphdb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: goraphdb-operator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: goraphdb-operator
+        app.kubernetes.io/component: operator
+        app.kubernetes.io/part-of: goraphdb
+    spec:
+      serviceAccountName: goraphdb-operator
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: manager
+          image: ghcr.io/mstryoda/goraphdb-operator:latest
+          args:
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+            # Enable leader election for HA operator deployments:
+            # - --leader-elect
+          ports:
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
+            - name: health
+              containerPort: 8081
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

@@ -1,0 +1,185 @@
+# ============================================================================
+# GoraphDB Production Cluster — 5-Node with Full Configuration
+#
+# Production-grade deployment with:
+#   - 5-node Raft cluster (tolerates 2 failures, quorum = 3)
+#   - SSD storage with separate WAL and Raft volumes for optimal I/O
+#   - Tuned query governor to prevent resource exhaustion
+#   - Pod anti-affinity for zone-aware scheduling
+#   - PodDisruptionBudget protecting Raft quorum
+#   - All graphdb.Options fields explicitly configured
+#
+# This sample demonstrates every CRD field with production-appropriate
+# values. Adjust based on your workload characteristics.
+#
+# Sizing reference (per pod):
+#   Memory: cacheBudget(512Mi) + mmapSize(1Gi) + overhead(256Mi) = ~1.75Gi
+#   CPU:    workerPoolSize(16) * ~0.1 core = 1.6 cores under full load
+#   Disk:   depends on dataset size, start with 2x expected data
+# ============================================================================
+apiVersion: goraphdb.io/v1alpha1
+kind: GoraphDBCluster
+metadata:
+  name: goraphdb-prod
+  namespace: goraphdb
+  labels:
+    environment: production
+    team: platform
+spec:
+  # -------------------------------------------------------------------------
+  # Cluster Topology
+  # -------------------------------------------------------------------------
+
+  # 5-node cluster: tolerates 2 simultaneous failures.
+  # Raft quorum = 3, so the cluster remains available with 3/5 nodes.
+  replicas: 5
+
+  image: ghcr.io/mstryoda/goraphdb:v0.1.0
+  imagePullPolicy: IfNotPresent
+
+  # -------------------------------------------------------------------------
+  # Storage Engine (maps to graphdb.Options in types.go)
+  # -------------------------------------------------------------------------
+
+  # 8 shards: each shard is a separate bbolt file with its own write lock.
+  # 8 shards = 8 concurrent writers = good throughput for mixed workloads.
+  # Rule of thumb: shardCount ~= number of CPU cores available.
+  #
+  # WARNING: changing shardCount requires data migration (all nodes must match).
+  shardCount: 8
+
+  # 16 query workers: matches the CPU core count for maximum parallelism.
+  # Each Cypher query fans out to all shards via the worker pool.
+  workerPoolSize: 16
+
+  # 512Mi node cache: caches frequently-accessed nodes in memory.
+  # Size based on expected hot working set (e.g., 10% of total data).
+  # Nodes are evicted LRU-first when this budget is exceeded.
+  cacheBudget: 512Mi
+
+  # 1Gi initial mmap: pre-allocates virtual address space for bbolt.
+  # Larger values avoid repeated mmap growth for datasets > 256MB.
+  # This does NOT pre-allocate disk space.
+  mmapSize: 1Gi
+
+  # noSync=true: background sync every ~200ms.
+  # In cluster mode, the WAL provides additional durability:
+  #   - Leader: WAL group commit fsync every 2ms
+  #   - Followers: replay WAL entries from leader
+  # At most 200ms of committed writes may be lost on power failure.
+  noSync: true
+
+  # Compact every hour to reclaim space from deleted nodes/edges.
+  # bbolt files grow but never shrink; compaction rewrites them.
+  compactionInterval: 1h
+
+  # -------------------------------------------------------------------------
+  # Query Governor
+  # -------------------------------------------------------------------------
+
+  # Log queries slower than 200ms.
+  # These appear in GET /api/slow-queries and the
+  # graphdb_slow_queries_total Prometheus counter.
+  slowQueryThreshold: 200ms
+
+  # Hard limit: queries returning > 100K rows are rejected.
+  # Prevents unbounded memory usage from MATCH (n) RETURN n queries.
+  maxResultRows: 100000
+
+  # Timeout: queries without a caller deadline are killed after 30s.
+  # Prevents runaway graph traversals from holding resources.
+  defaultQueryTimeout: 30s
+
+  # -------------------------------------------------------------------------
+  # Write Backpressure
+  # -------------------------------------------------------------------------
+
+  # Allow up to 128 concurrent writes per shard.
+  # With 8 shards: 1024 total concurrent writes across the node.
+  writeQueueSize: 128
+
+  # Writers wait up to 10s for a write slot before getting ErrWriteQueueFull.
+  writeTimeout: 10s
+
+  # -------------------------------------------------------------------------
+  # Persistent Storage
+  # -------------------------------------------------------------------------
+
+  storage:
+    # 100Gi per node for shard data.
+    # Each node stores the full dataset (no cross-node sharding).
+    dataSize: 100Gi
+
+    # 20Gi for WAL: at 64MB per segment, this holds ~320 segments.
+    # Segments are pruned after all followers catch up.
+    walSize: 20Gi
+
+    # 2Gi for Raft state: more than enough for raft-log.db + raft-stable.db.
+    raftSize: 2Gi
+
+    # Use SSD-backed storage for production.
+    # Adjust to your cloud provider's SSD StorageClass.
+    storageClassName: ssd
+
+  # -------------------------------------------------------------------------
+  # Compute Resources
+  # -------------------------------------------------------------------------
+
+  resources:
+    requests:
+      # 2 cores: handles 16 query workers + Raft + gRPC + HTTP
+      cpu: "2"
+      # 2Gi: cacheBudget(512Mi) + mmapSize(1Gi) + overhead(512Mi)
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 4Gi
+
+  # -------------------------------------------------------------------------
+  # Networking
+  # -------------------------------------------------------------------------
+
+  ports:
+    http: 7474
+    raft: 7000
+    grpc: 7001
+
+  # -------------------------------------------------------------------------
+  # Monitoring
+  # -------------------------------------------------------------------------
+
+  monitoring:
+    enabled: true
+    interval: 15s
+    scrapeTimeout: 10s
+
+  # -------------------------------------------------------------------------
+  # Pod Scheduling — Zone-Aware HA
+  # -------------------------------------------------------------------------
+
+  # Prefer spreading pods across availability zones.
+  # The operator adds pod anti-affinity automatically; this adds zone awareness.
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: goraphdb
+                app.kubernetes.io/instance: goraphdb-prod
+            topologyKey: topology.kubernetes.io/zone
+
+  # Schedule on nodes with SSD storage.
+  nodeSelector:
+    node.kubernetes.io/storage-type: ssd
+
+  # -------------------------------------------------------------------------
+  # Availability
+  # -------------------------------------------------------------------------
+
+  # Protect Raft quorum: at least 3 pods must be available.
+  # With 5 replicas and minAvailable=3, up to 2 pods can be disrupted
+  # simultaneously during voluntary disruptions (drain, upgrade).
+  podDisruptionBudget:
+    minAvailable: 3

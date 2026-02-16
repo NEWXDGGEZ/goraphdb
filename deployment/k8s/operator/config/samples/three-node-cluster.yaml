@@ -1,0 +1,73 @@
+# ============================================================================
+# GoraphDB 3-Node Cluster — High Availability
+#
+# Deploys a 3-node GoraphDB cluster with:
+#   - Raft-based leader election (hashicorp/raft)
+#   - WAL-based replication over gRPC (leader → followers)
+#   - Automatic write forwarding (followers transparently proxy to leader)
+#   - Tolerates 1 node failure (Raft quorum = 2)
+#
+# Architecture:
+#
+#   ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+#   │ goraphdb-0  │     │ goraphdb-1  │     │ goraphdb-2  │
+#   │   LEADER    │────▶│  FOLLOWER   │     │  FOLLOWER   │
+#   │             │────▶│             │     │             │
+#   │  :7474 HTTP │     │  :7474 HTTP │     │  :7474 HTTP │
+#   │  :7000 Raft │     │  :7000 Raft │     │  :7000 Raft │
+#   │  :7001 gRPC │     │  :7001 gRPC │     │  :7001 gRPC │
+#   └─────────────┘     └─────────────┘     └─────────────┘
+#         │                    │                    │
+#         │  WAL Replication   │                    │
+#         ├────────────────────┘                    │
+#         └────────────────────────────────────────┘
+#
+# The operator creates 3 Services:
+#   1. goraphdb-ha-headless  — headless, for Raft/gRPC peer discovery via DNS
+#   2. goraphdb-ha-client    — ClusterIP, routes to leader only (read+write)
+#   3. goraphdb-ha-read      — ClusterIP, routes to all ready pods (read-only)
+# ============================================================================
+apiVersion: goraphdb.io/v1alpha1
+kind: GoraphDBCluster
+metadata:
+  name: goraphdb-ha
+  namespace: default
+spec:
+  # 3-node cluster: tolerates 1 failure, Raft quorum = 2.
+  replicas: 3
+
+  image: ghcr.io/mstryoda/goraphdb:latest
+
+  # 4 shards for moderate write concurrency.
+  # All 3 nodes will use the same shard count.
+  shardCount: 4
+
+  # Resources per pod.
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+  # 256Mi node cache for better read performance.
+  # Memory request should be >= cacheBudget + mmapSize + overhead.
+  cacheBudget: 256Mi
+  mmapSize: 256Mi
+
+  storage:
+    dataSize: 20Gi
+    # Raft state is small but latency-sensitive.
+    # On cloud providers, consider a separate fast storage class.
+    storageClassName: standard
+
+  # Prometheus monitoring enabled by default.
+  monitoring:
+    enabled: true
+    interval: 15s
+
+  ports:
+    http: 7474
+    raft: 7000
+    grpc: 7001

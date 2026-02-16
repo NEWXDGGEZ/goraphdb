@@ -1,0 +1,47 @@
+# ============================================================================
+# GoraphDB Single Node — Development / Testing
+#
+# Deploys a single GoraphDB instance in standalone mode (no Raft, no WAL,
+# no gRPC replication). This is the simplest deployment suitable for:
+#   - Local development with minikube/kind
+#   - CI/CD test environments
+#   - Small datasets with no HA requirements
+#
+# Since replicas=1, the operator:
+#   - Skips cluster mode entirely (no -node-id, -raft-addr, -grpc-addr flags)
+#   - Does not enable WAL (no replication overhead)
+#   - Creates a single PVC for all data (shard files in /data/db)
+#   - Creates only one Service (no leader/read-replica split needed)
+# ============================================================================
+apiVersion: goraphdb.io/v1alpha1
+kind: GoraphDBCluster
+metadata:
+  name: goraphdb-dev
+  namespace: default
+spec:
+  # Single node — standalone mode, no Raft cluster.
+  replicas: 1
+
+  # Container image — replace with your built image.
+  image: ghcr.io/mstryoda/goraphdb:latest
+
+  # Minimal resources for development.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  # Small storage for development.
+  storage:
+    dataSize: 5Gi
+
+  # Keep defaults for everything else:
+  #   shardCount: 1
+  #   workerPoolSize: 8
+  #   cacheBudget: 128Mi
+  #   mmapSize: 256Mi
+  #   noSync: true
+  #   ports: { http: 7474 }

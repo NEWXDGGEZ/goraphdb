@@ -1,0 +1,86 @@
+# ============================================================================
+# ClusterRole for the GoraphDB Operator
+#
+# The operator needs permissions to:
+# 1. Watch/manage GoraphDBCluster custom resources (our CRD)
+# 2. Create/update/delete StatefulSets, Services, ConfigMaps, PDBs
+# 3. Read Pods and Events for health monitoring
+# 4. Manage Leases for operator leader election
+#
+# Design decision: ClusterRole (not Role) because:
+# - The operator watches GoraphDBCluster resources across all namespaces
+# - CRD resources are cluster-scoped by nature
+# - Users deploy GoraphDB clusters in different namespaces
+#
+# Security principle: least privilege — only the permissions needed.
+# ============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: goraphdb-operator
+  labels:
+    app.kubernetes.io/name: goraphdb-operator
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: goraphdb
+rules:
+  # --- GoraphDBCluster CRD ---
+  # Full CRUD on our custom resource + status subresource.
+  - apiGroups: ["goraphdb.io"]
+    resources: ["goraphdbclusters"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["goraphdb.io"]
+    resources: ["goraphdbclusters/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["goraphdb.io"]
+    resources: ["goraphdbclusters/finalizers"]
+    verbs: ["update"]
+
+  # --- Core Kubernetes Resources ---
+  # StatefulSet: the primary workload for GoraphDB pods.
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Services: headless (peer discovery), client (leader), read (all replicas).
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # ConfigMaps: entrypoint script for cluster topology computation.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Pods: read-only access for health checking and status aggregation.
+  # The operator polls /api/health on each pod to update MemberStatus.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+
+  # PersistentVolumeClaims: read-only to monitor storage usage.
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch"]
+
+  # Events: emit Kubernetes events for leader changes, failovers, etc.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+
+  # PodDisruptionBudgets: protect Raft quorum during voluntary disruptions.
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # --- Monitoring ---
+  # ServiceMonitor: Prometheus Operator CRD for metrics scraping.
+  - apiGroups: ["monitoring.coreos.com"]
+    resources: ["servicemonitors"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # --- Operator Leader Election ---
+  # Leases: used by controller-runtime for operator HA leader election.
+  # This is separate from GoraphDB's Raft-based leader election.
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
